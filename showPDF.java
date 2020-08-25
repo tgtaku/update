@@ -15,9 +15,11 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.pdf.PdfRenderer;
 import android.media.Image;
@@ -29,16 +31,22 @@ import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Display;
 import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.MimeTypeMap;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
@@ -59,7 +67,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import kotlin.jvm.internal.Ref;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -71,7 +82,8 @@ import static android.os.Environment.getExternalStorageDirectory;
 
 public class showPDF extends AppCompatActivity {
     String url = "http://";
-    private FrameLayout frameLayout;
+    LinearLayout linearLayout;
+    FrameLayout frameLayout;
     public static ArrayList<Bitmap> bitmapPDF = new ArrayList<>();
     private static int pageNum;
     private static TextView pdfPage;
@@ -80,17 +92,38 @@ public class showPDF extends AppCompatActivity {
     private static String pageText;
     private final int CODE_MULTIPLE_IMG_GALLERY = 2;
     public String insertLocalPicturesInformation = "http://10.20.170.52/sample/insert_local_pictures_information.php";
+    public String getLocalPicturesInformation = "http://10.20.170.52/sample/get_local_pictures_information.php";
+    public String getServerPicturesInformation = "http://10.20.170.52/sample/get_server_pictures_information.php";
 
     public static String fileNameForInsert,pointX,pointY,pathForInsert;
 
     int flag = 0;
+    //int flag = 2;
 
+    //図面描画用
+    public static ArrayList<String> filesName;// = new ArrayList<String>();
+    public static ArrayList<String> filesNameServer;// = new ArrayList<String>();
+    public static ArrayList<String> touchX;// = new ArrayList<>();
+    public static ArrayList<String> touchY;// = new ArrayList<>();
+    public static ArrayList<String> touchXServer;// = new ArrayList<>();
+    public static ArrayList<String> touchYServer;// = new ArrayList<>();
+    public ImageView[] imageViewLocal;
+    public ImageView imageViewServer;
+    public FrameLayout frameLayoutSample;
+    public static int m = 0;
+
+    //事前情報の取得
+    String regex_filesName = "\"files_name\":.+?\",";
+    String regex_pointX = "\"point_x\":.+?\",";
+    String regex_pointY = "\"point_y\":.+?\",";
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_show_p_d_f);
+
+        linearLayout = findViewById(R.id.linearLayout);
 
         frameLayout = findViewById(R.id.frameLayout);
         pdfPage = findViewById(R.id.page);
@@ -159,19 +192,69 @@ public class showPDF extends AppCompatActivity {
                 renderer.close();
             }
         }
+
+        //描画の設定
+        //frameLayoutSample = findViewById(R.id.sample);
+       /* int num = 0;
+        while(num < touchY.size()){
+            imageViewLocal = new ImageView(this);
+            imageViewLocal.setImageResource(R.drawable.local_pic);
+            imageViewLocal.setOnClickListener(new View.OnClickListener(){
+                public void onClick(View view){
+                    //マーク押下時の処理
+                    System.out.println(touchX.get(m));
+                    m++;
+                }
+            });
+
+            FrameLayout.LayoutParams lpLocal = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lpLocal.gravity = Gravity.TOP;
+            lpLocal.leftMargin = touchX.get(num);
+            lpLocal.topMargin = touchY.get(num);
+            frameLayout.addView(imageViewLocal, lpLocal);
+            num++;
+        }
+
+        num = 0;
+
+        while(num < touchYServer.size()){
+            imageViewServer = new ImageView(this);
+            imageViewServer.setImageResource(R.drawable.server_pic);
+            imageViewServer.setOnClickListener(new View.OnClickListener(){
+                public void onClick(View view){
+                    //マーク押下時の処理
+                    System.out.println("-------------------------");
+                }
+            });
+            FrameLayout.LayoutParams lpServer = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lpServer.gravity = Gravity.TOP;
+            lpServer.leftMargin = touchXServer.get(num);
+            lpServer.topMargin = touchYServer.get(num);
+            frameLayout.addView(imageViewServer, lpServer);
+            num++;
+        }
+*/
+
         showPdf sp = new showPdf();
-        sp.execute(url);
+        sp.execute(getLocalPicturesInformation, getServerPicturesInformation);
+
+        //pictureInfo
+        //TextView picTitle = new TextView(this);
     }
 
 
 
-    private class showPdf extends AsyncTask<String, Void, ArrayList<Bitmap>> {
+    private class showPdf extends AsyncTask<String, Void, String> {
         @Override
-        public ArrayList<Bitmap> doInBackground(String... params){
-            ArrayList<Bitmap> bitmapArrayList = new ArrayList<>();
-            Bitmap bmp = null;
-
-
+        public String doInBackground(String... params) {
+            /*ArrayList<Bitmap> bitmapArrayList = new ArrayList<>();
+            Bitmap bmp = null;*/
+            filesName = new ArrayList<String>();
+            filesNameServer = new ArrayList<String>();
+            touchX = new ArrayList<>();
+            touchY = new ArrayList<>();
+            touchXServer = new ArrayList<>();
+            touchYServer = new ArrayList<>();
 
             String params0_url = params[0];
             HttpURLConnection con = null;
@@ -179,37 +262,134 @@ public class showPDF extends AppCompatActivity {
             InputStream is = null;
             //返却用の変数
             StringBuffer conResult = new StringBuffer();
-            switch (params0_url){
+            switch (params0_url) {
                 case "http://10.20.170.52/sample/insert_local_pictures_information.php":
                     //カメラ操作後の処理
-                System.out.println("insert_local_pictures_information.php");
-                try {
-                    //String project_information = params[0];
-                    //String dates = "2020-05-13";
-                    URL url = new URL(params0_url);
+                    System.out.println("insert_local_pictures_information.php");
+
+
+                    try {
+                        //String project_information = params[0];
+                        //String dates = "2020-05-13";
+                        URL url = new URL(params0_url);
+                        con = (HttpURLConnection) url.openConnection();
+                        con.setRequestMethod("POST");
+                        con.setDoInput(true);
+                        con.setDoOutput(true);
+                        OutputStream outputStream = con.getOutputStream();
+                        BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream, "UTF-8"));
+                        //POSTデータの編集
+                        String pageNo = String.valueOf(i);
+                        SimpleDateFormat dataFormat = new SimpleDateFormat("yyyyMMdd");
+                        Date now = new Date(System.currentTimeMillis());
+                        StringBuilder sb = new StringBuilder();
+                        sb.append(dataFormat.format(now));
+                        sb.insert(4, "-");
+                        sb.insert(7, "-");
+                        pathForInsert = "/storage/emulated/0/Pictures/" + fileNameForInsert;
+                        String post_data = URLEncoder.encode("files_name", "UTF-8") + "=" + URLEncoder.encode(fileNameForInsert, "UTF-8") + "&" +
+                                URLEncoder.encode("users_name", "UTF-8") + "=" + URLEncoder.encode(MainActivity.username, "UTF-8") + "&" +
+                                URLEncoder.encode("projects_name", "UTF-8") + "=" + URLEncoder.encode(MyPage.selectedProjects, "UTF-8") + "&" +
+                                URLEncoder.encode("page", "UTF-8") + "=" + URLEncoder.encode(pageNo, "UTF-8") + "&" +
+                                URLEncoder.encode("point_x", "UTF-8") + "=" + URLEncoder.encode(pointX, "UTF-8") + "&" +
+                                URLEncoder.encode("point_y", "UTF-8") + "=" + URLEncoder.encode(pointY, "UTF-8") + "&" +
+                                URLEncoder.encode("date", "UTF-8") + "=" + URLEncoder.encode(sb.toString(), "UTF-8") + "&" +
+                                URLEncoder.encode("path", "UTF-8") + "=" + URLEncoder.encode(pathForInsert, "UTF-8");
+                        System.out.println(post_data);
+                        bufferedWriter.write(post_data);
+                        bufferedWriter.flush();
+                        bufferedWriter.close();
+                        outputStream.close();
+                        InputStream inputStream = con.getInputStream();
+                        String encoding = con.getContentEncoding();
+                        if (null == encoding) {
+                            encoding = "UTF-8";
+                        }
+                        InputStreamReader inReader = new InputStreamReader(inputStream, encoding);
+                        BufferedReader bufferedReader = new BufferedReader(inReader);
+                        String line = bufferedReader.readLine();
+                        while (line != null) {
+                            conResult.append(line);
+                            line = bufferedReader.readLine();
+                        }
+                        System.out.println(conResult.toString());
+                        bufferedReader.close();
+                        inputStream.close();
+                        con.disconnect();
+                    } catch (MalformedURLException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    break;
+
+                case "http://10.20.170.52/sample/get_local_pictures_information.php":
+                    String params1_url = params[1];
+                    StringBuffer _conResult = new StringBuffer();
+                    try {
+                        System.out.println("localPicturesInformation.php");
+                        URL url = new URL(params0_url);
+                        con = (HttpURLConnection) url.openConnection();
+                        con.setRequestMethod("POST");
+                        con.setDoInput(true);
+                        con.setDoOutput(true);
+                        OutputStream outputStream = con.getOutputStream();
+                        BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream, "UTF-8"));
+                        String _page = String.valueOf(i);
+                        //POSTデータの編集
+                        String post_data = URLEncoder.encode("page", "UTF-8")
+                                + "=" + URLEncoder.encode(_page, "UTF-8");
+                        System.out.println(post_data);
+                        bufferedWriter.write(post_data);
+                        bufferedWriter.flush();
+                        bufferedWriter.close();
+                        outputStream.close();
+                        InputStream inputStream = con.getInputStream();
+                        String encoding = con.getContentEncoding();
+                        if (null == encoding) {
+                            encoding = "UTF-8";
+                        }
+                        InputStreamReader inReader = new InputStreamReader(inputStream, encoding);
+                        BufferedReader bufferedReader = new BufferedReader(inReader);
+                        String line = bufferedReader.readLine();
+                        while (line != null) {
+                            conResult.append(line);
+                            line = bufferedReader.readLine();
+                        }
+                        bufferedReader.close();
+                        inputStream.close();
+                        con.disconnect();
+                    } catch (MalformedURLException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    //JSONからデータの取得
+                    System.out.println(conResult.toString());
+                    //JSONデータからファイル名、ポイントの取得
+                    Pattern p_filesName = Pattern.compile(regex_filesName);
+                    checkFilesName(p_filesName, conResult.toString());
+                    System.out.println(filesName);
+                    Pattern p_pointX = Pattern.compile(regex_pointX);
+                    checkPointX(p_pointX, conResult.toString());
+                    System.out.println(touchX);
+                    Pattern p_pointY = Pattern.compile(regex_pointY);
+                    checkPointY(p_pointY, conResult.toString());
+                    System.out.println(touchY);
+
+                    try{
+                    System.out.println("serverPicturesInformation.php");
+                    URL url = new URL(params1_url);
                     con = (HttpURLConnection) url.openConnection();
                     con.setRequestMethod("POST");
                     con.setDoInput(true);
                     con.setDoOutput(true);
                     OutputStream outputStream = con.getOutputStream();
                     BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream, "UTF-8"));
+                    String _page = String.valueOf(i);
                     //POSTデータの編集
-                    String pageNo = String.valueOf(i);
-                    SimpleDateFormat dataFormat = new SimpleDateFormat("yyyyMMdd");
-                    Date now = new Date(System.currentTimeMillis());
-                    StringBuilder sb = new StringBuilder();
-                    sb.append(dataFormat.format(now));
-                    sb.insert(4, "-");
-                    sb.insert(7, "-");
-                    pathForInsert = "/storage/emulated/0/Pictures/" + fileNameForInsert;
-                    String post_data = URLEncoder.encode("files_name", "UTF-8")+ "=" +URLEncoder.encode(fileNameForInsert, "UTF-8")+ "&" +
-                            URLEncoder.encode("users_name", "UTF-8") + "=" + URLEncoder.encode(MainActivity.username, "UTF-8")+ "&" +
-                            URLEncoder.encode("projects_name", "UTF-8") + "=" + URLEncoder.encode(MyPage.selectedProjects, "UTF-8")+ "&" +
-                            URLEncoder.encode("page", "UTF-8") + "=" + URLEncoder.encode(pageNo, "UTF-8")+ "&" +
-                            URLEncoder.encode("point_x", "UTF-8") + "=" + URLEncoder.encode(pointX, "UTF-8")+ "&" +
-                            URLEncoder.encode("point_y", "UTF-8") + "=" + URLEncoder.encode(pointY, "UTF-8")+ "&" +
-                            URLEncoder.encode("date", "UTF-8") + "=" + URLEncoder.encode(sb.toString(), "UTF-8")+ "&" +
-                            URLEncoder.encode("path", "UTF-8") + "=" + URLEncoder.encode(pathForInsert, "UTF-8");
+                    String post_data = URLEncoder.encode("page", "UTF-8")
+                            + "=" + URLEncoder.encode(_page, "UTF-8");
                     System.out.println(post_data);
                     bufferedWriter.write(post_data);
                     bufferedWriter.flush();
@@ -224,28 +404,152 @@ public class showPDF extends AppCompatActivity {
                     BufferedReader bufferedReader = new BufferedReader(inReader);
                     String line = bufferedReader.readLine();
                     while (line != null) {
-                        conResult.append(line);
+                        _conResult.append(line);
                         line = bufferedReader.readLine();
                     }
-                    System.out.println(conResult.toString());
                     bufferedReader.close();
                     inputStream.close();
                     con.disconnect();
-                } catch (MalformedURLException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                break;
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            //JSONからデータの取得
+            System.out.println(_conResult.toString());
+            //JSONデータからファイル名、ポイントの取得
+            ///Pattern p_filesName = Pattern.compile(regex_filesName);
+            checkServerFilesName(p_filesName, _conResult.toString());
+            System.out.println(filesNameServer);
+            //Pattern p_pointX = Pattern.compile(regex_pointX);
+            checkServerPointX(p_pointX, _conResult.toString());
+            System.out.println(touchXServer);
+            //Pattern p_pointY = Pattern.compile(regex_pointY);
+            checkServerPointY(p_pointY, _conResult.toString());
+            System.out.println(touchYServer);
+                    break;
+
             }
 
             //return
             //return bitmapArrayList;
-            return null;
-        }
-        @Override
-        public void onPostExecute(ArrayList<Bitmap> bitmapArrayList){
+            String result = params0_url;
+            return result;
 
+
+        }
+
+        @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR1)
+        @Override
+        public void onPostExecute(String result) {
+            String param = result;
+            switch (param) {
+                case "http://10.20.170.52/sample/get_local_pictures_information.php":
+                    System.out.println("#################################333");
+                    //描画の設定
+                    frameLayout = findViewById(R.id.frameLayout);
+        int num = 0;
+        m = 0;
+                    imageViewLocal = new ImageView[touchY.size()];
+        while(num < touchY.size()){
+            imageViewLocal[m] = new ImageView(showPDF.this);
+            imageViewLocal[m].setImageResource(R.drawable.local_pic);
+            imageViewLocal[m].setTag(String.valueOf(m));
+            //imageViewLocal.setId(m);
+            //imageViewLocal.setId(View.generateViewId());
+            imageViewLocal[m].setOnClickListener(new View.OnClickListener(){
+                public void onClick(View view){
+                    //************************************************************************************
+                    Button text1 = new Button(showPDF.this);
+                    text1.setText("撮影");
+                    text1.setBackgroundColor(Color.rgb(255,235,205));
+                    text1.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            System.out.println("text1");
+
+                        }
+                    });
+                    Button text2 = new Button(showPDF.this);
+                    text2.setText("画像管理");
+                    text2.setBackgroundColor(Color.rgb(255,235,205));
+                    Button text3 = new Button(showPDF.this);
+                    text3.setText("報告書作成");
+                    text3.setBackgroundColor(Color.rgb(255,235,205));
+                    LinearLayout alert = new LinearLayout(showPDF.this);
+                    alert.setOrientation(LinearLayout.VERTICAL);
+                    alert.addView(text1);
+                    alert.addView(text2);
+                    alert.addView(text3);
+
+                    //アラートダイアログ出力
+                    String x = String.valueOf(view.getX());
+                    String y = String.valueOf(view.getY());
+                    String title = "X:" + x + "Y:" + y;
+                    //String title = "*********************aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+                    AlertDialog.Builder builder = new AlertDialog.Builder(showPDF.this, R.style.MyAlertDialogStyle);
+                    builder.setTitle(title)
+                            //.setMessage("こちらの場所でよろしいですか")
+                            .setNegativeButton("キャンセル", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialogInterface, int i) {
+                                    //imageView.setImageResource(0);
+                                }
+                            })
+                            .setView(alert);
+                    AlertDialog alertDialog = builder.create();
+                    WindowManager.LayoutParams wm = alertDialog.getWindow().getAttributes();
+                    wm.gravity = Gravity.TOP;
+                    wm.y = (int) view.getY();
+                    wm.x = (int) view.getX();
+                    //wm.alpha = 0.8f;
+                    //DisplayMetrics metrics = getResources().getDisplayMetrics();
+                    alertDialog.getWindow().setAttributes(wm);
+                            alertDialog.show();
+
+                    /*System.out.println(view.getTag());
+                    System.out.println(view.getX());
+                    System.out.println(view.getY());
+                    *///onTouchEvent(0);
+                    //System.out.println(m);
+                    //System.out.println(touchX.get(m));
+                    //m++;
+                }
+            });
+
+            FrameLayout.LayoutParams lpLocal = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lpLocal.gravity = Gravity.TOP;
+            int X = Integer.valueOf(touchX.get(num));
+            lpLocal.leftMargin = X;
+            int Y = Integer.valueOf(touchY.get(num));
+            lpLocal.topMargin = Y;
+            frameLayout.addView(imageViewLocal[num], lpLocal);
+            num++;
+            m++;
+        }
+
+        num = 0;
+
+        while(num < touchYServer.size()){
+            imageViewServer = new ImageView(showPDF.this);
+            imageViewServer.setImageResource(R.drawable.server_pic);
+            imageViewServer.setOnClickListener(new View.OnClickListener(){
+                public void onClick(View view){
+                    //マーク押下時の処理
+                    System.out.println("-------------------------");
+                }
+            });
+            FrameLayout.LayoutParams lpServer = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lpServer.gravity = Gravity.TOP;
+            int X = Integer.valueOf(touchXServer.get(num));
+            lpServer.leftMargin = X;
+            int Y = Integer.valueOf(touchYServer.get(num));
+            lpServer.topMargin = Y;
+            frameLayout.addView(imageViewServer, lpServer);
+            num++;
+        }
+                    break;
+            }
         }
     }
 
@@ -331,9 +635,20 @@ public class showPDF extends AppCompatActivity {
                         }
                     })
                     .show();
+            flag = 0;
+
+        }else if(flag == 2){
+
+                event.getX();
+                System.out.println(event.getY());
+
+            //event.getX();
+            //System.out.println(event.getY());
 
         }
-        flag = 0;
+
+
+
         return true;
     }
 
@@ -345,6 +660,34 @@ public class showPDF extends AppCompatActivity {
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     public void onClickNextPage(View myButton){
         if(i != pageNum){
+            //frameLayout = new FrameLayout(showPDF.this);
+            //frameLayout.removeAllViews();
+            linearLayout.removeAllViews();
+
+            //linearLayout.addView(frameLayout);
+            setContentView(R.layout.activity_show_p_d_f);
+            frameLayout = findViewById(R.id.frameLayout);
+            pdfPage = findViewById(R.id.page);
+            /*
+            int num = 0;
+            while(num < touchYServer.size()){
+                imageViewServer = new ImageView(this);
+                imageViewServer.setImageResource(R.drawable.server_pic);
+                imageViewServer.setOnClickListener(new View.OnClickListener(){
+                    public void onClick(View view){
+                        //マーク押下時の処理
+                        System.out.println("-------------------------");
+                    }
+                });
+                FrameLayout.LayoutParams lpServer = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                lpServer.gravity = Gravity.TOP;
+                lpServer.leftMargin = touchXServer.get(num);
+                lpServer.topMargin = touchYServer.get(num);
+                frameLayout.addView(imageViewServer, lpServer);
+                num++;
+            }
+*/
+
             File path = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
             System.out.println(path);
             ParcelFileDescriptor fd = null;
@@ -389,6 +732,10 @@ public class showPDF extends AppCompatActivity {
             pageText = i + "ページ / " + pageNum +"ページ";
             pdfPage.setText(pageText);
             //pdfPage.setText(i + "ページ");
+            /*imageViewLocal.setImageResource(0);
+            imageViewServer.setImageResource(0);*/
+            showPdf sp = new showPdf();
+            sp.execute(getLocalPicturesInformation, getServerPicturesInformation);
         }
     }
 
@@ -399,6 +746,10 @@ public class showPDF extends AppCompatActivity {
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     public void onClickBackPage(View myButton){
         if(i != 1){
+            frameLayout = findViewById(R.id.frameLayout);
+            //frameLayout.removeView(imageViewLocal);
+            frameLayout = new FrameLayout(showPDF.this);
+            //frameLayout = new FrameLayout(showPDF.this);
             //String pathname = "http://10.20.170.52/sample/pdf/sampleProject1/lowcarbon05.pdf";
             //File path = new File()
             File path = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
@@ -447,6 +798,11 @@ public class showPDF extends AppCompatActivity {
             pageText = i + "ページ / " + pageNum +"ページ";
             pdfPage.setText(pageText);
             //pdfPage.setText(i + "ページ /" + pageNum +" ページ");
+            //imageViewLocal.setImageResource(0);
+            /*
+            imageViewServer.setImageResource(0);*/
+            showPdf sp = new showPdf();
+            sp.execute(getLocalPicturesInformation, getServerPicturesInformation);
         }
     }
 
@@ -474,10 +830,10 @@ public class showPDF extends AppCompatActivity {
     public void createReportClick(View view){
         //Intent intent = new Intent(this, createReport.class);
         //startActivity(intent);
-        //dialogFragment dialog = new dialogFragment();
-        //dialog.show(getSupportFragmentManager(), "dialogFragment");
-        Intent intent = new Intent(this, selectReportType.class);
-        startActivity(intent);
+        dialogFragment dialog = new dialogFragment();
+        dialog.show(getSupportFragmentManager(), "dialogFragment");
+        //Intent intent = new Intent(this, selectReportType.class);
+        //startActivity(intent);
     }
 
     public void reportViewClick(View view){
@@ -617,6 +973,69 @@ public class showPDF extends AppCompatActivity {
         request.allowScanningByMediaScanner();
         request.setAllowedNetworkTypes(DownloadManager.Request.NETWORK_MOBILE |DownloadManager.Request.NETWORK_WIFI);
         downloadManager.enqueue(request);
+    }
+
+    //正規表現でJSON形式から配列に当てはめる
+    private static void checkFilesName(Pattern p, String target){
+        Matcher m = p.matcher(target);
+        while(m.find()){
+            String pName = m.group();
+            filesName.add(pName.substring(15, pName.length() - 2));
+            System.out.println(m.group());
+        }
+    }
+    private static void checkPointX(Pattern p, String target){
+        Matcher m = p.matcher(target);
+        while(m.find()){
+            String pName = m.group();
+            touchX.add(pName.substring(12, pName.length() - 2));
+            System.out.println(m.group());
+        }
+    }
+    private static void checkPointY(Pattern p, String target){
+        Matcher m = p.matcher(target);
+        while(m.find()){
+            String pName = m.group();
+            touchY.add(pName.substring(12, pName.length() - 2));
+            System.out.println(m.group());
+        }
+    }
+
+    private static void checkServerFilesName(Pattern p, String target){
+        Matcher m = p.matcher(target);
+        while(m.find()){
+            String pName = m.group();
+            filesNameServer.add(pName.substring(15, pName.length() - 2));
+            System.out.println(m.group());
+        }
+    }
+    private static void checkServerPointX(Pattern p, String target){
+        Matcher m = p.matcher(target);
+        while(m.find()){
+            String pName = m.group();
+            touchXServer.add(pName.substring(12, pName.length() - 2));
+            System.out.println(m.group());
+        }
+    }
+    private static void checkServerPointY(Pattern p, String target){
+        Matcher m = p.matcher(target);
+        while(m.find()){
+            String pName = m.group();
+            touchYServer.add(pName.substring(12, pName.length() - 2));
+            System.out.println(m.group());
+        }
+    }
+
+    private Bitmap getBitmapFromAsset(String strName){
+        AssetManager assetManager = getAssets();
+        InputStream istr = null;
+        try{
+            istr = assetManager.open(strName);
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+        Bitmap bitmap = BitmapFactory.decodeStream(istr);
+        return bitmap;
     }
 
 }
